@@ -1,0 +1,40 @@
+{
+    "id": "peewee",
+    "name": "Peewee",
+    "schema": {
+	"peewee.gen": {
+	    "text": "Python Code Generation",
+	    "type": "section"
+	},
+	"peewee.gen.installPath": {
+	    "text": "Installation Path",
+	    "description": "Installation path of python",
+	    "type": "string",
+	    "default": "#!/usr/bin/python"
+	},
+	"peewee.gen.peeweeModelsPackage": {
+	    "text": "Peewee Models Package",
+	    "description": "Peewee Models Package",
+	    "type": "string",
+	    "default": "from peewee.db import models"
+	},
+	"peewee.gen.useTab": {
+	    "text": "Use Tab",
+	    "description": "Use Tab for indentation instead of spaces.",
+	    "type": "check",
+	    "default": false
+	},
+	"peewee.gen.indentSpaces": {
+	    "text": "Indent Spaces",
+	    "description": "Number of spaces for indentation.",
+	    "type": "number",
+	    "default": 4
+	},
+	"peewee.gen.docString": {
+	    "text": "Docstring",
+	    "description": "Generate docstrings.",
+	    "type": "check",
+	    "default": true
+	}        
+    }
+}

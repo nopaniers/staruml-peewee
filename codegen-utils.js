@@ -19,6 +19,8 @@ class CodeWriter {
 
     /** @member {string} indentString */
     this.indentString = indentString || '    '; // default 4 spaces
+
+    this.dirty = false;
   }
 
   /**
@@ -45,9 +47,11 @@ class CodeWriter {
   writeln (line) {
     if (line) {
       this.lines.push(this.indentString.repeat(this.indentLevel) + line);
+      this.dirty = true;
     } else {
       this.lines.push('');
     }
+
     return this;
   }
 

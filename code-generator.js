@@ -208,7 +208,6 @@ class BaseModel(Model):
   }
 
 
-
   writeClass(element) {
     var codeWriter = this.codeWriter;
     
@@ -218,13 +217,16 @@ class BaseModel(Model):
     if (element.documentation) {
       codeWriter.writeln(`"""${element.documentation}"""`);
     }
-    codeWriter.writeln();
+    codeWriter.dirty = false;
     
     element.columns
       .forEach((column) => this.writeColumn(column));
 
     app.repository.getRelationshipsOf(element)
       .forEach((relationship) => this.writeRelation(element, relationship));
+
+    if (!codeWriter.dirty)
+      codeWriter.writeln("pass");
     
     codeWriter
       .dedent()
@@ -255,7 +257,7 @@ class BaseModel(Model):
     // One-to-one and one-to-many
     if (otherEnd.cardinality === "1" || otherEnd.cardinality === "0..1") {
 
-      // Possibly doubling. Only include this link once.
+      // One-to-one. Possibly doubling. Only include this link once.
       if (thisEnd.cardinality === '1' || thisEnd.cardinality === "0..1") {
 	if (thisEnd.name && !otherEnd.name)
 	  return;
@@ -280,6 +282,11 @@ class BaseModel(Model):
       
       this.codeWriter
 	.writeln(`${otherEnd.name} = ForeignKeyField(${parameters.join(', ')})`);
+      return;
+    }
+
+    // Many-to-one: will be generated as one-to-many.
+    if (thisEnd.cardinality === '1' || thisEnd.cardinality === "0..1") {
       return;
     }
 
@@ -308,18 +315,21 @@ class BaseModel(Model):
     codeWriter
       .writeln(`class ${tableName}(BaseModel):`)
       .indent()
-      .writeln(`""" Implements a many-to-many relationship between ${relation.end1.type.name} and ${relation.end2.type.name} """`)
-      .writeln();
+      .writeln(`""" Implements a many-to-many relationship between ${relation.end1.reference.name} and ${relation.end2.reference.name} """`);
+//      .writeln();
 
-    for (end, other) in [(relation.end1, relation.end2), (relation.end2, relation.end1)] {
-      var otherName = other.name || other.type.name.toLowerCase() + "s"; 
+    for (const [end, other] of [[relation.end1, relation.end2],
+				[relation.end2, relation.end1]]) {
+      
+      var otherName = other.name || other.reference.name.toLowerCase() + "s"; 
       codeWriter
-	.writeln(`${end.type.toLowerCase()} = ForeignField(${end.type}, backref = ${otherName})`);
+	.writeln(`${end.reference.name.toLowerCase()} = ForeignField(${end.reference.name}, backref = ${otherName})`);
     }
 
     codeWriter
-      .writeln();
-      .writeln();
+      .dedent()
+      .writeln()
+      .writeln()
       .writeln();
   }
     

@@ -20,22 +20,39 @@ class PeeweeCodeGenerator {
    * @param {string} basePath generated files and directories to be placed
    */
   constructor (baseModel, basePath) {
-    /** @member {type.Model} */
+    
     this.baseModel = baseModel;
-
-    /** @member {string} */
     this.basePath = basePath;
-
     this.options = null;
     this.codeWriter = null;
     this.manyToMany = [];
+
+    this.peeweeField = {
+      "VARCHAR": "CharField",
+      "BOOLEAN": "BooleanField",
+      "INTEGER": "IntegerField",
+      "CHAR": "FixedCharField",
+      // "BINARY": "",
+      // "VARBINARY": "",
+      "BLOB": "BlobField",
+      "TEXT": "TextField",
+      "SMALLINT": "SmallIntegerField",
+      "BIGINT": "BigIntegerField",
+      "DECIMAL": "DecimalField",
+      "NUMERIC": "DecimalField",
+      "FLOAT": "FloatField",
+      "DOUBLE": "DoubleField",
+      "BIT": "BitField",
+      "DATE": "DateField",
+      "TIME": "TimeField",
+      "DATETIME": "DateTimeField",
+      "TIMESTAMP": "TimestampField"
+    };
+
+    
   }
 
-  /**
-   * Return Indent String based on options
-   * @param {Object} options
-   * @return {string}
-   */
+  
   getIndentString (options) {
     if (options.useTab) {
       return '\t';
@@ -44,127 +61,31 @@ class PeeweeCodeGenerator {
     }
   }
 
-  /**
-   * Write Attribute
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeAttribute (codeWriter, elem, options, isClassVar) {
-    if (elem.name.length > 0) {
-      
-      var line;
-      line = elem.name;
-      
-      if (elem.multiplicity && ['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
-        line += ' = []';
 
-      } else if (elem.defaultValue && elem.defaultValue.length > 0) {
-        line += ' = ' + elem.defaultValue;
 
-      } else if (elem.type){
-        line += ' = ' + mapBasicTypesToPeeweeFieldClass(elem);
-        
-      } else {
-        line += ' = None';
-      }
-      codeWriter.writeln(line);
-    }
+  toPeeweeField(element) {
+    var type = this.peeweeField[element.type];
+    var parameters = [];
+    
+    if (element.nullable)
+      parameters.push('null = True');
+
+    if (element.unique)
+      parameters.push('unique = True');
+
+    if (element.primaryKey)
+      parameters.push('primary_key = True');
+
+    if (element.length != 0)
+      parameters.push(`max_length = ${element.length}`)
+    
+    return `${type}(${parameters.join(', ')})`;
   }
 
-
-  /**
-   * Write Constructor
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeConstructor (codeWriter, elem, options) {
-    var self = this;
-    var hasBody = false;
-    codeWriter.writeln('def __init__(self):');
-    codeWriter.indent();
-
-    // from attributes
-    if (elem.attributes.length > 0) {
-      elem.attributes.forEach(function (attr) {
-        if (attr.isStatic === false) {
-          self.writeVariable(codeWriter, attr, options, false);
-          hasBody = true;
-        }
-      });
-    }
-
-    // from associations
-    var associations = app.repository.getRelationshipsOf(elem, function (rel) {
-      return (rel instanceof type.UMLAssociation);
-    });
-    for (var i = 0, len = associations.length; i < len; i++) {
-      var asso = associations[i];
-      if (asso.end1.reference === elem && asso.end2.navigable === true) {
-        self.writeVariable(codeWriter, asso.end2, options);
-        hasBody = true;
-      }
-      if (asso.end2.reference === elem && asso.end1.navigable === true) {
-        self.writeVariable(codeWriter, asso.end1, options);
-        hasBody = true;
-      }
-    }
-
-    if (!hasBody) {
-      codeWriter.writeln('pass');
-    }
-
-    codeWriter.dedent();
-    codeWriter.writeln();
-  }
-
-
-  /**
-   * Write writeRealation
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {type.Model} asso
-   * @param {Object} options
-   */
-  writeRealation (codeWriter, elem, asso, options) {
-
-    var tags = asso.tags;
-    var tags_str = "";
-
-    // console.log(tags);
-    tags_str += getTagsString(tags);
-
-    if (tags_str){
-      tags_str = ", " + tags_str;
-    }
-
-    if (asso.end1.reference === elem && asso.end2.navigable === true && asso.end2.multiplicity && asso.end1.multiplicity) {       
-        if (asso.end1.multiplicity == "1" && asso.end2.multiplicity == "1"){
-          var refObjName = asso.end2.reference.name;
-          var var_name = asso.name;
-          codeWriter.writeln(var_name + " = models.OneToOneField('" + refObjName + "'"+ tags_str +")");
-        }
-
-        if (['0..*', '1..*', '*'].includes(asso.end1.multiplicity.trim()) && asso.end2.multiplicity == "1"){
-          var refObjName = asso.end2.reference.name;
-          var var_name = asso.name;
-          codeWriter.writeln(var_name + " = models.ForeignKey('" + asso.end2.reference.name + "'" + tags_str +", on_delete=models.PROTECT)");
-        }
-
-        if (['0..*', '1..*', '*'].includes(asso.end1.multiplicity.trim()) && ['0..*', '1..*', '*'].includes(asso.end2.multiplicity.trim())){
-          var refObjName = asso.end2.reference.name;
-          var var_name = asso.name;
-          codeWriter.writeln(var_name + " = models.ManyToManyField('" + asso.end2.reference.name + "'"+ tags_str +")");
-        }
-    }
-  }
-
-
-
-  //****************************************************************************
   
-  
+
+  //----------------------------------------------------------------------------
+    
   generate (classes, options) {
       
     var codeWriter = new codegen.CodeWriter(this.getIndentString(options));
@@ -180,7 +101,7 @@ class PeeweeCodeGenerator {
 
 from peewee import *
 
-db = SqliteDatabase('database.db')
+${options.dbVariable} = SqliteDatabase('${options.dbFilename}')
 
 
 #-------------------------------------------------------------------------------
@@ -189,7 +110,7 @@ db = SqliteDatabase('database.db')
 class BaseModel(Model):
 
    class Meta:
-      database = db
+      database = ${options.dbVariable}
 
 
 #-------------------------------------------------------------------------------
@@ -237,7 +158,7 @@ class BaseModel(Model):
   }
 
   writeColumn(element) {
-    this.codeWriter.writeln(`${element.name} = ${toPeeweeField(element)}`);
+    this.codeWriter.writeln(`${element.name} = ${this.toPeeweeField(element)}`);
   }
 
   writeRelation(element, relation) {
@@ -293,7 +214,7 @@ class BaseModel(Model):
     // Many-to-many
 
     // This is a many-to-many relationship. We will have to introduce
-    // an entirely new table for the purpose. Push it now, and specify it later...
+    // an entirely new table for the purpose. Push it now, and specify later...
     if (!this.manyToMany.includes(relation)) {
       this.manyToMany.push(relation);
     } 
@@ -315,15 +236,17 @@ class BaseModel(Model):
     codeWriter
       .writeln(`class ${tableName}(BaseModel):`)
       .indent()
-      .writeln(`""" Implements a many-to-many relationship between ${relation.end1.reference.name} and ${relation.end2.reference.name} """`);
-//      .writeln();
+      .writeln(`""" Implements a many-to-many relationship between `+
+	       `${relation.end1.reference.name} and `+
+	       `${relation.end2.reference.name} """`);
 
     for (const [end, other] of [[relation.end1, relation.end2],
 				[relation.end2, relation.end1]]) {
       
       var otherName = other.name || other.reference.name.toLowerCase() + "s"; 
       codeWriter
-	.writeln(`${end.reference.name.toLowerCase()} = ForeignField(${end.reference.name}, backref = ${otherName})`);
+	.writeln(`${end.reference.name.toLowerCase()} = ` +
+		 `ForeignField(${end.reference.name}, backref = ${otherName})`);
     }
 
     codeWriter
@@ -337,51 +260,20 @@ class BaseModel(Model):
 }
 
 
+
 //------------------------------------------------------------------------------
+// Generate
+//----------------------------------------------------------------------------
 
-
-var peeweeField = {
-    "VARCHAR": "CharField",
-    "BOOLEAN": "BooleanField",
-    "INTEGER": "IntegerField",
-    "CHAR": "FixedCharField",
-    // "BINARY": "",
-    // "VARBINARY": "",
-    "BLOB": "BlobField",
-    "TEXT": "TextField",
-    "SMALLINT": "SmallIntegerField",
-    "BIGINT": "BigIntegerField",
-    "DECIMAL": "DecimalField",
-    "NUMERIC": "DecimalField",
-    "FLOAT": "FloatField",
-    "DOUBLE": "DoubleField",
-    "BIT": "BitField",
-    "DATE": "DateField",
-    "TIME": "TimeField",
-    "DATETIME": "DateTimeField",
-    "TIMESTAMP": "TimestampField"
-};
-
-
-function toPeeweeField(element) {
-  var type = peeweeField[element.type];
-  var parameters = [];
+function ensureFolderExists(path)
+{
+  if (!fs.existsSync(path)) {
+    fs.mkdirSync(path);
+    return;
+  }
   
-  if (element.nullable)
-    parameters.push('null = True');
-
-  if (element.unique)
-    parameters.push('unique = True');
-
-  if (element.primaryKey)
-    parameters.push('primary_key = True');
-
-  if (element.length != 0)
-    parameters.push(`max_length = ${element.length}`)
-  
-  return `${type}(${parameters.join(', ')})`;
+  app.toast.info("Using existing folder");
 }
-
 
 
 function generate (baseModel, basePath, options)
@@ -402,15 +294,5 @@ function generate (baseModel, basePath, options)
   fs.writeFileSync(filename, text);
 }
 
-
-function ensureFolderExists(path)
-{
-  if (!fs.existsSync(path)) {
-    fs.mkdirSync(path);
-    return;
-  }
-  
-  app.toast.info("Using existing folder");
-}
 
 exports.generate = generate;

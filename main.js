@@ -8,11 +8,10 @@ const codeGenerator = require('./code-generator');
 function getGenOptions ()
 {
   return {
-    installPath: app.preferences.get('peewee.installPath'),
-    peeweeModelsPackage: app.preferences.get('peewee.modelsPackage'),
+    dbFilename: app.preferences.get('peewee.dbFilename'),
+    dbVariable: app.preferences.get('peewee.dbVariable'),
     useTab: app.preferences.get('peewee.useTab'),
-    indentSpaces: app.preferences.get('peewee.indentSpaces'),
-    docString: app.preferences.get('peewee.docString')
+    indentSpaces: app.preferences.get('peewee.indentSpaces')
   };
 }
 
@@ -22,13 +21,26 @@ async function handleGenerate (base, path, options)
   // If options is not passed, get from preference
   options = options || getGenOptions();
   
-  // If base is not assigned, popup ElementPicker
-  if (!base) {
+
+  // Try to find DataModel
+  datamodels = app.repository.getInstancesOf("ERDDataModel");
+
+  if (!datamodels) {
+    app.toast.warning("No data models found");
+    return;
+  }
+  
+  if (datamodels.length == 1) {
+    base = datamodels[0];
+  } else {
+    // If base is not assigned, popup ElementPicker
     let { buttonId, returnValue } = await app.elementPickerDialog.showDialog(
       'Select a base model to generate', null, type.ERDDataModel);
-  
+    
     if (buttonId === 'ok') {
       base = returnValue;
+    } else {
+      return;
     }
   }
   

@@ -1,40 +1,40 @@
 {
-    "id": "peewee",
-    "name": "Peewee",
-    "schema": {
-	"peewee": {
-	    "text": "PeeWee Database Model Code Generation",
-	    "type": "section"
-	},
-	"peewee.installPath": {
-	    "text": "Installation Path",
-	    "description": "Installation path of python",
-	    "type": "string",
-	    "default": "#!/usr/bin/python"
-	},
-	"peewee.modelsPackage": {
-	    "text": "Peewee Models Package",
-	    "description": "Peewee Models Package",
-	    "type": "string",
-	    "default": "from peewee import models"
-	},
-	"peewee.useTab": {
-	    "text": "Use Tab",
-	    "description": "Use Tab for indentation instead of spaces.",
-	    "type": "check",
-	    "default": false
-	},
-	"peewee.indentSpaces": {
-	    "text": "Indent Spaces",
-	    "description": "Number of spaces for indentation.",
-	    "type": "number",
-	    "default": 4
-	},
-	"peewee.docString": {
-	    "text": "Docstring",
-	    "description": "Generate docstrings.",
-	    "type": "check",
-	    "default": true
-	}       
+  "id": "peewee",
+  "name": "Peewee",
+  "schema": {
+
+    "peewee": {
+      "text": "PeeWee Database Model Code Generation",
+      "type": "section"
+    },
+        
+    "peewee.dbFilename": {
+      "text": "Database filename",
+      "description": "The filename of the database",
+      "type": "string",
+      "default": "database.db"
+    },
+
+    "peewee.dbVariable": {
+      "text": "Database variable",
+      "description": "The variable name of the database",
+      "type": "string",
+      "default": "db"
+    },
+    
+    "peewee.useTab": {
+      "text": "Use Tab",
+      "description": "Use Tab for indentation instead of spaces.",
+      "type": "check",
+      "default": false
+    },
+    
+    "peewee.indentSpaces": {
+      "text": "Indent Spaces",
+      "description": "Number of spaces for indentation.",
+      "type": "number",
+      "default": 4
     }
+    
+  }
 }

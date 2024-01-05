@@ -26,6 +26,7 @@ class CodeWriter {
    */
   indent () {
     this.indentLevel += 1;
+    return this;
   }
 
   /**
@@ -34,6 +35,7 @@ class CodeWriter {
   dedent () {
     this.indentLevel -= 1;
     console.assert(this.indentLevel >= 0, "Indent level went negative");
+    return this;
   }
 
   /**
@@ -46,12 +48,14 @@ class CodeWriter {
     } else {
       this.lines.push('');
     }
+    return this;
   }
 
   writeString(string) {
     string.split("\n")
       .map((line) => line.replace("   ", this.indentString))
       .forEach((line) => this.writeln(line));
+    return this;
   }
 
   /**

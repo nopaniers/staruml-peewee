@@ -1,14 +1,17 @@
-/*
+/*==============================================================================
  * PeeWee code generation
- */
+ *============================================================================*/
+
 
 const fs = require('fs');
 const path = require('path');
 const codegen = require('./codegen-utils');
 
-/**
+
+/*-----------------------------------------------------------------------------
  *  Code Generator
- */
+ *---------------------------------------------------------------------------*/
+
 class PeeweeCodeGenerator {
   /**
    * @constructor
@@ -22,6 +25,10 @@ class PeeweeCodeGenerator {
 
     /** @member {string} */
     this.basePath = basePath;
+
+    this.options = null;
+    this.codeWriter = null;
+    this.manyToMany = [];
   }
 
   /**
@@ -34,121 +41,6 @@ class PeeweeCodeGenerator {
       return '\t';
     } else {
       return ' '.repeat(options.indentSpaces);
-    }
-  }
-
-  /**
-   * Collect inheritances (super classes or interfaces) of a given element
-   * @param {type.Model} elem
-   * @return {Array.<type.Model>}
-   */
-  getInherits (elem) {
-    var inherits = app.repository.getRelationshipsOf(elem, function (rel) {
-      return (rel.source === elem && (rel instanceof type.UMLGeneralization || rel instanceof type.UMLInterfaceRealization));
-    });
-
-    return inherits.map(function (gen) { 
-      //console.log(gen.target);
-      return gen.target; 
-    });
-  }
-
-  /**
-   * Write Doc
-   * @param {StringWriter} codeWriter
-   * @param {string} text
-   * @param {Object} options
-   */
-  writeDoc (codeWriter, text, options) {
-    var i, len, lines;
-    if (options.docString && text.trim().length > 0) {
-      lines = text.trim().split('\n');
-      if (lines.length > 1) {
-        codeWriter.writeln('"""');
-        for (i = 0, len = lines.length; i < len; i++) {
-          codeWriter.writeln(lines[i]);
-        }
-        codeWriter.writeln('"""');
-      } else {
-        codeWriter.writeln('"""' + lines[0] + '"""');
-      }
-    }
-  }
-
-    /**
-   * Write Meta
-   * @param {StringWriter} codeWriter
-   * @param {string} text
-   * @param {Object} options
-   */
-  writeMeta (codeWriter, elem, options) {
-    
-    var is_blank=true;
-
-    codeWriter.writeln('class Meta:');
-    codeWriter.indent();
-    if (elem.isAbstract){
-      codeWriter.writeln('abstract = True');
-      is_blank = false;      
-    }
-
-    var tags = elem.tags;
-    var tag;
-
-    for (var i = 0, len = tags.length; i < len; i++) {
-
-      is_blank = false; 
-      tag = tags[i];
-
-      if (tag.kind == "string"){
-        codeWriter.writeln(tag.name + "='" + tag.value.trim().split('\n') + "'");
-
-      } else if (tag.kind == "number"){
-        codeWriter.writeln(tag.name + "=" + tag.number);
-
-      } else if (tag.kind == "boolean"){
-        if (tag.checked){
-          codeWriter.writeln(tag.name + "=True");        
-        } else {
-          codeWriter.writeln(tag.name + "=False");
-        }
-      }
-    }
-  
-    if (is_blank){
-      codeWriter.writeln('pass');
-    }
-    codeWriter.dedent();
-    codeWriter.writeln();
-  }
-
-  /**
-   * Write Variable
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeVariable (codeWriter, elem, options, isClassVar) {
-    if (elem.name.length > 0) {
-      var line;
-
-      if (isClassVar) {
-        line = elem.name;
-      
-      } else {
-        line = 'self.' + elem.name;
-      }
-
-      if (elem.multiplicity && ['0..*', '1..*', '*'].includes(elem.multiplicity.trim())) {
-        line += ' = []';
-      
-      } else if (elem.defaultValue && elem.defaultValue.length > 0) {
-        line += ' = ' + elem.defaultValue;
-      
-      } else {
-        line += ' = None';
-      }
-      codeWriter.writeln(line);
     }
   }
 
@@ -227,43 +119,6 @@ class PeeweeCodeGenerator {
     codeWriter.writeln();
   }
 
-  /**
-   * Write Method
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeMethod (codeWriter, elem, options) {
-    if (elem.name.length > 0) {
-
-      
-      // name
-      var line = 'def ' + elem.name;
-
-      // params
-      var params = elem.getNonReturnParameters();
-      var paramStr = params.map(function (p) { 
-        return p.name;
-      }).join(', ');
-
-      
-
-      if (elem.isStatic) {
-        codeWriter.writeln('@classmethod');
-        codeWriter.writeln(line + '(cls, ' + paramStr + '):');
-      } else {
-        if (elem.isQuery){
-          codeWriter.writeln('@property');
-        }
-        codeWriter.writeln(line + '(self, ' + paramStr + '):');
-      }
-      codeWriter.indent();
-      this.writeDoc(codeWriter, elem.documentation, options);
-      codeWriter.writeln('pass');
-      codeWriter.dedent();
-      codeWriter.writeln();
-    }
-  }
 
   /**
    * Write writeRealation
@@ -306,50 +161,16 @@ class PeeweeCodeGenerator {
   }
 
 
-  /**
-   * Write Enum
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeEnum (codeWriter, elem, options) {
-    var line = '';
 
-    codeWriter.writeln('from enum import Enum');
-    codeWriter.writeln();
-
-    // Enum
-    line = 'class ' + elem.name + '(Enum):';
-    codeWriter.writeln(line);
-    codeWriter.indent();
-
-    // Docstring
-    this.writeDoc(codeWriter, elem.documentation, options);
-
-    if (elem.literals.length === 0) {
-      codeWriter.writeln('pass');
-    } else {
-      for (var i = 0, len = elem.literals.length; i < len; i++) {
-        codeWriter.writeln(elem.literals[i].name + ' = ' + (i + 1));
-      }
-    }
-    codeWriter.dedent();
-    codeWriter.writeln();
-  }
-
-
+  //****************************************************************************
   
   
-  /**
-   * Generate code from a given element
-   * @param {type.Model} elem
-   * @param {string} path
-   * @param {Object} options
-   */
-  generate (classes, basePath, options) {
+  generate (classes, options) {
       
-    var fullPath = basePath + '/model.py';
     var codeWriter = new codegen.CodeWriter(this.getIndentString(options));
+    
+    this.codeWriter = codeWriter;
+    this.options = options;
 
     codeWriter.writeString(
 `#===============================================================================
@@ -377,69 +198,136 @@ class BaseModel(Model):
 `);
 
     // Generate each class
-    classes.forEach((element) => this.writeClass(codeWriter, element, options));
+    classes
+      .forEach((element) => this.writeClass(element));
 
-    // Write the file
-    fs.writeFileSync(fullPath, codeWriter.getData());
+    this.manyToMany
+      .forEach((relation) => this.writeManyToMany(relation));
+
+    return codeWriter.getData();
   }
 
 
 
-
-  /**
-   * Write Class
-   * @param {StringWriter} codeWriter
-   * @param {type.Model} elem
-   * @param {Object} options
-   */
-  writeClass (codeWriter, element, options) {
-
-    codeWriter.writeln(`class ${element.name}(BaseModel):`);
+  writeClass(element) {
+    var codeWriter = this.codeWriter;
+    
+    codeWriter.writeln(`class ${element.name}(BaseModel):`)
     codeWriter.indent();
+    
     if (element.documentation) {
       codeWriter.writeln(`"""${element.documentation}"""`);
     }
     codeWriter.writeln();
     
     element.columns
-      .forEach((column) => this.writeColumn(codeWriter, column, options));
+      .forEach((column) => this.writeColumn(column));
+
+    app.repository.getRelationshipsOf(element)
+      .forEach((relationship) => this.writeRelation(element, relationship));
     
-    codeWriter.dedent();
-    codeWriter.writeln();
-    codeWriter.writeln();
-    codeWriter.writeln();
-    
-  }
-
-
-
-  writeColumn(codeWriter, element, options) {
-
-    codeWriter.writeln(`${element.name} = ${toPeeweeField(element)}`);
+    codeWriter
+      .dedent()
+      .writeln()
+      .writeln()
+      .writeln();
     
   }
 
-  
-  
-}
+  writeColumn(element) {
+    this.codeWriter.writeln(`${element.name} = ${toPeeweeField(element)}`);
+  }
 
-
-
-
-
-function getTagsString(tags) {
-  return tags.map(function (e) {
-    if (e.kind == "string") {
-      return e.name + "='" + e.value.trim().split('\n') + "'";
-    } else if (e.kind == "number") {
-      return e.name + "=" + e.number;
-    } else if (e.kind == "boolean") {
-      return e.name + (e.checked ? "=True" : "=False");
-    } else if (e.kind == "reference") {
-      return e.name + "=" + e.reference.name;
+  writeRelation(element, relation) {
+    console.log(element.name);
+    console.log(relation);
+    
+    // Normalise the ends
+    var thisEnd, otherEnd;
+    if (relation.end1.reference === element) {
+      thisEnd = relation.end1;
+      otherEnd = relation.end2;
+    } else {
+      thisEnd = relation.end2;
+      otherEnd = relation.end1;
     }
-  }).join(', ')
+
+    // One-to-one and one-to-many
+    if (otherEnd.cardinality === "1" || otherEnd.cardinality === "0..1") {
+
+      // Possibly doubling. Only include this link once.
+      if (thisEnd.cardinality === '1' || thisEnd.cardinality === "0..1") {
+	if (thisEnd.name && !otherEnd.name)
+	  return;
+
+	if (otherEnd.cardinality === "0..1" && thisEnd.cardinality === "1")
+	  return;
+
+	if (thisEnd.name > otherEnd.name)
+	  return;
+      }
+
+      if (!otherEnd.name) {
+	otherEnd.name = otherEnd.type.name.toLowerCase();
+      }
+      	
+      var parameters = [otherEnd.reference.name]
+      if (thisEnd.name)
+	parameters.push(`backref = ${thisEnd.name}`);
+      
+      if (otherEnd.cardinality.includes("0")) 
+	parameters.push('null = True');
+      
+      this.codeWriter
+	.writeln(`${otherEnd.name} = ForeignKeyField(${parameters.join(', ')})`);
+      return;
+    }
+
+    // Many-to-many
+
+    // This is a many-to-many relationship. We will have to introduce
+    // an entirely new table for the purpose. Push it now, and specify it later...
+    if (!this.manyToMany.includes(relation)) {
+      this.manyToMany.push(relation);
+    } 
+  }
+
+
+  writeManyToMany(relation)
+  {
+    var codeWriter = this.codeWriter;
+
+    var tableName = relation.name;
+    if (!tableName) {
+      var end1 = relation.end1.name || relation.end1.type.name;
+      var end2 = relation.end2.name || relation.end2.type.name;
+      
+      tableName = `${end1}_${end2}`;
+    }
+      
+    codeWriter
+      .writeln(`class ${tableName}(BaseModel):`)
+      .indent()
+      .writeln(`""" Implements a many-to-many relationship between ${relation.end1.type.name} and ${relation.end2.type.name} """`)
+      .writeln();
+
+    for (end, other) in [(relation.end1, relation.end2), (relation.end2, relation.end1)] {
+      var otherName = other.name || other.type.name.toLowerCase() + "s"; 
+      codeWriter
+	.writeln(`${end.type.toLowerCase()} = ForeignField(${end.type}, backref = ${otherName})`);
+    }
+
+    codeWriter
+      .writeln();
+      .writeln();
+      .writeln();
+  }
+    
+
 }
+
+
+//------------------------------------------------------------------------------
 
 
 var peeweeField = {
@@ -481,7 +369,7 @@ function toPeeweeField(element) {
   if (element.length != 0)
     parameters.push(`max_length = ${element.length}`)
   
-  return `${type}(${parameters.join(',')})`;
+  return `${type}(${parameters.join(', ')})`;
 }
 
 
@@ -490,15 +378,20 @@ function generate (baseModel, basePath, options)
 {
   var peeweeCodeGenerator = new PeeweeCodeGenerator(baseModel, basePath);
   var fullPath = basePath + '/' + baseModel.name.toLowerCase();
-
+  
   ensureFolderExists(fullPath);
   
   var classes =
       baseModel.ownedElements
       .filter((element) => element instanceof type.ERDEntity);
-  
-  peeweeCodeGenerator.generate(classes, fullPath, options);
+
+  var filename =  fullPath + '/model.py';
+  var text = peeweeCodeGenerator.generate(classes, options);
+
+  // Write the file
+  fs.writeFileSync(filename, text);
 }
+
 
 function ensureFolderExists(path)
 {
@@ -507,32 +400,7 @@ function ensureFolderExists(path)
     return;
   }
   
-  if (app.dialogs
-      .showConfirmDialog("A folder exists with the same name, overwrite?") === 'ok')
-  {
-    app.toast.info("Overwriting previous folder");
-    deleteFolderRecursive(path);
-    fs.mkdirSync(path);
-  } else {
-    app.toast.info("Using existing folder");
-  }  
-}
-
-function deleteFolderRecursive(path)
-{
-  // Recursively remove subfolders
-  fs.readdirSync(path)
-    .map((file, index) => path + "/" + file)
-    .forEach(function(filename) {
-      if (fs.lstatSync(filename).isDirectory()) {
-	deleteFolderRecursive(filename); // recurse
-      } else {
-	fs.unlinkSync(filename); // delete file
-      }
-    });
-
-  // Remove this path
-  fs.rmdirSync(path);
+  app.toast.info("Using existing folder");
 }
 
 exports.generate = generate;

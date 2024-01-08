@@ -1,8 +1,7 @@
+# StarUML extension to generate PeeWee database models
 
-# StartUML extension to auto generate PeeWee database model
 
-
-## Pupose
+## Purpose
 
 The aim of this project is to provide an StarUML extension to:
 
@@ -52,4 +51,8 @@ bugs that you find here via github.
 
 - Charles Hill [nopaniers@gmail.com](nopaniers@gmail.com)
 
+This project is based on a similar project, [staruml-django](https://github.com/josemlp91/staruml-django), by [josemlp91](https://github.com/josemlp91).
+
+
 If you find this project useful, feel free to buy me a coffee.
+

@@ -196,7 +196,7 @@ class BaseModel(Model):
       	
       var parameters = [otherEnd.reference.name]
       if (thisEnd.name)
-	parameters.push(`backref = ${thisEnd.name}`);
+	parameters.push(`backref = "${thisEnd.name}"`);
       
       if (otherEnd.cardinality.includes("0")) 
 	parameters.push('null = True');
@@ -224,11 +224,11 @@ class BaseModel(Model):
   writeManyToMany(relation)
   {
     var codeWriter = this.codeWriter;
-
+    
     var tableName = relation.name;
     if (!tableName) {
-      var end1 = relation.end1.name || relation.end1.type.name;
-      var end2 = relation.end2.name || relation.end2.type.name;
+      let end1 = relation.end1.name || relation.end1.type.name;
+      let end2 = relation.end2.name || relation.end2.type.name;
       
       tableName = `${end1}_${end2}`;
     }
@@ -243,10 +243,11 @@ class BaseModel(Model):
     for (const [end, other] of [[relation.end1, relation.end2],
 				[relation.end2, relation.end1]]) {
       
-      var otherName = other.name || other.reference.name.toLowerCase() + "s"; 
+      let otherName = other.name || other.reference.name.toLowerCase() + "s"; 
       codeWriter
 	.writeln(`${end.reference.name.toLowerCase()} = ` +
-		 `ForeignField(${end.reference.name}, backref = ${otherName})`);
+		 `ForeignKeyField(${end.reference.name}, `+
+		 `backref = "${otherName}")`);
     }
 
     codeWriter
@@ -254,9 +255,213 @@ class BaseModel(Model):
       .writeln()
       .writeln()
       .writeln();
-  }
-    
+  }    
 
+}
+
+
+//------------------------------------------------------------------------------
+// Topological sort
+//------------------------------------------------------------------------------
+
+
+class AssociationGraph {
+  
+  // A graph representing one-to-one and one-to-many associations
+  constructor(classes)
+  {
+    // A "child" class depends on its parents for definition
+
+    // For a many-to-one relationship, the 'many-class' should include
+    // the foreign key of the 'one-class'.  So in this case the
+    // many-class is a child of the one. If this is not possible we
+    // should use a deferred foreign key (which is a clunky workaround).
+
+    // Another example is a one-to-zero or one relationship.  In this
+    // case the key should naturally go with the one-class.  If this
+    // is not possible, we should put it with the zero-or-one class,
+    // but make that field nullable. This is preferrable breaking a
+    // many-to-one relationship.
+
+    // Roots of this tree then represent nodes which depend on nothing else...
+    
+    this.nodes = classes;
+    this.children = {};
+    this.oneToOne = {};
+
+    console.log("Constructor children:");
+    console.log(this.children);
+    
+    // Fill in the graph initially
+    this.populateEdges(this.nodes);
+
+    console.log("After constructor:");
+    console.log(this.children);
+    console.log(Object.keys(this.children));
+  }
+
+  populateEdges(classes)
+  {
+    // Start with blank lists
+    classes.forEach((cls) => this.children[cls.name] = []);
+    classes.forEach((cls) => this.oneToOne[cls.name] = []);
+
+    
+    
+    // Get all assocations
+    let associations = app.repository.getInstancesOf("ERDRelationship");
+
+    associations
+      .filter((assoc) =>
+	classes.includes(assoc.end1.reference) &&
+	  classes.includes(assoc.end2.reference))
+      .forEach((assoc) => {
+	
+	console.log(assoc.end1);
+	console.log(assoc.end2);
+	
+	for (const [end1, end2] of [[assoc.end1, assoc.end2],
+				    [assoc.end2, assoc.end1]]) {
+
+	  console.log(end1);
+	  console.log(end2);
+	  
+	  // Many-to-one
+	  if ( end1.cardinality.includes("*") &&
+	       !end2.cardinality.includes("*"))
+	    this.children[end2.reference.name].push(end1.reference);
+	  
+	  // One-to-zero-or-one
+	  else if (end1.cardinality === "1" &&
+		   end2.cardinality === "0..1") {
+	    this.children[end2.reference.name].push(end1.reference);
+	    this.oneToOne[end2.reference.name].push(end1.reference);
+	  }
+	}
+	
+      });
+	     
+  }
+
+  
+  findRoots(remainingClasses)
+  {
+    console.log("Remaining Classes (findRoots):");
+    console.log(remainingClasses);
+
+    console.log("Children:");
+    remainingClasses.forEach((cls) => {
+      console.log(cls.name);
+      console.log(this.children[cls.name]);
+    });
+    
+    // Find nodes which are not children of any other
+    return remainingClasses
+      .filter((candidate) =>
+	!remainingClasses.some((parent) =>
+	  this.children[parent.name]
+	    .includes(candidate)));
+      
+  }
+
+
+  numberOfParents(classes)
+  {
+    var numParents = {};
+    classes.forEach((cls) => numParents[cls.name] = 0);
+
+    classes.forEach((cls) =>
+      this.children[cls.name]
+	.forEach((child) => numParents[child.name] += 1)
+    );
+
+    console.log(numParents);
+    
+    return numParents;
+  }
+
+  breakAssociation(remainingClasses)
+  {
+    console.log("Breaking association!");
+    
+    // The graph of only remainingClasses contains a cycle.
+    // Break one of the edges with the goal of removing cycles
+    let numParents = this.numberOfParents(remainingClasses);
+
+    // Sort the array so those closer to being a root come out first
+    remainingClasses.sort((a, b) => numParents[a] - numParents[b]);
+
+    // Remove all one-to-one edges first
+    for (const cls of remainingClasses) {
+      
+      for (const child of this.children[cls.name]) {
+	if (this.oneToOne[cls].includes(child)) {
+
+	  // Remove the edge
+	  this.children[cls.name] =
+	    this.children[cls.name].filter((item) => item !== child);
+	  this.oneToOne[cls.name] =
+	    this.oneToOne[cls.name].filter((item) => item !== child);
+	  
+	  return;
+	  
+	}
+      }
+    }
+
+    // Remove first many-to-one edges next
+    let cls = remainingClasses[0];
+    let child = this.children[cls.name][0];
+
+
+    this.children[cls.name] =
+      this.children[cls.name].filter((item) => item !== child);
+    this.oneToOne[cls] =
+      this.oneToOne[cls.name].filter((item) => item !== child);
+  }
+
+  
+  topologicalSort(classes)
+  {
+    // Construct a tree in which children depend on parents
+    let topologicalOrder = []
+    let brokenAssociations = [];
+    let remainingClasses = classes;
+    
+    while (remainingClasses.length > 0) {
+      console.log("Remaining classes:");
+      console.log(remainingClasses);
+      
+      let roots = this.findRoots(remainingClasses);
+
+      console.log("Roots:");
+      console.log(roots);
+      
+      if (roots.length > 0) {
+	
+	topologicalOrder.push(... roots);
+	remainingClasses =
+	  remainingClasses.filter((cls) => !roots.includes(cls));
+	
+      } else {
+
+	// Cycle found. Must break it...
+	this.breakAssociation(remainingClasses);
+	
+      }
+    }
+
+    return topologicalOrder;
+  }
+
+  toString()
+  {
+    return this.classes.map((cls) =>
+      this.children[cls.name]
+	.map((child) => "${cls} -> ${child}")
+	.join("\n"))
+      .join("\n");
+  }
 }
 
 
@@ -287,8 +492,15 @@ function generate (baseModel, basePath, options)
       baseModel.ownedElements
       .filter((element) => element instanceof type.ERDEntity);
 
+  let assocGraph = new AssociationGraph(classes);
+  console.log(assocGraph);
+  orderedClasses = assocGraph.topologicalSort(classes);
+
+  console.log("Topologically ordered classes:");
+  console.log(orderedClasses);
+    
   var filename =  fullPath + '/model.py';
-  var text = peeweeCodeGenerator.generate(classes, options);
+  var text = peeweeCodeGenerator.generate(orderedClasses, options);
 
   // Write the file
   fs.writeFileSync(filename, text);

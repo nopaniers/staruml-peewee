@@ -35,9 +35,14 @@ the same database schema which you have defined. Specifically,
 ## Sample
 
 ```python
+#===============================================================================
+# PeeWee Database Model
+#===============================================================================
+
+
 from peewee import *
 
-ddd = SqliteDatabase('data.db')
+db = SqliteDatabase('data.db')
 
 
 #-------------------------------------------------------------------------------
@@ -46,7 +51,7 @@ ddd = SqliteDatabase('data.db')
 class BaseModel(Model):
 
     class Meta:
-       database = ddd
+       database = db
 
 
 #-------------------------------------------------------------------------------

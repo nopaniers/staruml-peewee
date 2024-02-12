@@ -35,8 +35,42 @@ the same database schema which you have defined. Specifically,
 ## Sample
 
 ```python
+from peewee import *
 
-# ... include example code here ...
+ddd = SqliteDatabase('data.db')
+
+
+#-------------------------------------------------------------------------------
+
+
+class BaseModel(Model):
+
+    class Meta:
+       database = ddd
+
+
+#-------------------------------------------------------------------------------
+
+
+
+class Good(BaseModel):
+    """A good is something which you can make or buy"""
+    name = CharField(unique = True)
+    baseValue = IntegerField()
+
+
+
+class Recipe(BaseModel):
+    name = CharField(max_length = 80)
+    amountProduced = IntegerField()
+    product = ForeignKeyField(Good)
+
+
+
+class Ingredients(BaseModel):
+    amount = IntegerField()
+    good = ForeignKeyField(Good)
+    recipe = ForeignKeyField(Recipe, backref = "ingredients")
 
 ```
 
@@ -52,7 +86,4 @@ bugs that you find here via github.
 - Charles Hill [nopaniers@gmail.com](nopaniers@gmail.com)
 
 This project is based on a similar project, [staruml-django](https://github.com/josemlp91/staruml-django), by [josemlp91](https://github.com/josemlp91).
-
-
-If you find this project useful, feel free to buy me a coffee.
 

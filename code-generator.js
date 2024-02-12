@@ -26,7 +26,8 @@ class PeeweeCodeGenerator {
     this.options = null;
     this.codeWriter = null;
     this.manyToMany = [];
-
+    this.classesSeen = [];
+    
     this.peeweeField = {
       "VARCHAR": "CharField",
       "BOOLEAN": "BooleanField",
@@ -138,6 +139,8 @@ class BaseModel(Model):
     if (element.documentation) {
       codeWriter.writeln(`"""${element.documentation}"""`);
     }
+    
+    this.classesSeen.push(element.name);
     codeWriter.dirty = false;
     
     element.columns
@@ -162,8 +165,6 @@ class BaseModel(Model):
   }
 
   writeRelation(element, relation) {
-    console.log(element.name);
-    console.log(relation);
     
     // Normalise the ends
     var thisEnd, otherEnd;
@@ -191,18 +192,26 @@ class BaseModel(Model):
       }
 
       if (!otherEnd.name) {
-	otherEnd.name = otherEnd.type.name.toLowerCase();
+	otherEnd.name = otherEnd.reference.name.toLowerCase();
       }
       	
-      var parameters = [otherEnd.reference.name]
+      var parameters = [otherEnd.reference.name];
+      var fkField = "ForeignKeyField";
+      
+      if (!this.classesSeen.includes(otherEnd.reference.name)) {
+	fkField = "DeferredForeignKeyField";
+	parameters[0] = `"${otherEnd.reference.name}"`;
+      }
+      
       if (thisEnd.name)
 	parameters.push(`backref = "${thisEnd.name}"`);
       
       if (otherEnd.cardinality.includes("0")) 
 	parameters.push('null = True');
+
       
       this.codeWriter
-	.writeln(`${otherEnd.name} = ForeignKeyField(${parameters.join(', ')})`);
+	.writeln(`${otherEnd.name} = ${fkField}(${parameters.join(', ')})`);
       return;
     }
 
@@ -227,8 +236,8 @@ class BaseModel(Model):
     
     var tableName = relation.name;
     if (!tableName) {
-      let end1 = relation.end1.name || relation.end1.type.name;
-      let end2 = relation.end2.name || relation.end2.type.name;
+      let end1 = relation.end1.name || relation.end1.reference.name;
+      let end2 = relation.end2.name || relation.end2.reference.name;
       
       tableName = `${end1}_${end2}`;
     }
@@ -277,7 +286,7 @@ class AssociationGraph {
     // many-class is a child of the one. If this is not possible we
     // should use a deferred foreign key (which is a clunky workaround).
 
-    // Another example is a one-to-zero or one relationship.  In this
+    // Another example is a one-to-zero-or-one relationship.  In this
     // case the key should naturally go with the one-class.  If this
     // is not possible, we should put it with the zero-or-one class,
     // but make that field nullable. This is preferrable breaking a
@@ -288,16 +297,9 @@ class AssociationGraph {
     this.nodes = classes;
     this.children = {};
     this.oneToOne = {};
-
-    console.log("Constructor children:");
-    console.log(this.children);
     
     // Fill in the graph initially
     this.populateEdges(this.nodes);
-
-    console.log("After constructor:");
-    console.log(this.children);
-    console.log(Object.keys(this.children));
   }
 
   populateEdges(classes)
@@ -305,8 +307,6 @@ class AssociationGraph {
     // Start with blank lists
     classes.forEach((cls) => this.children[cls.name] = []);
     classes.forEach((cls) => this.oneToOne[cls.name] = []);
-
-    
     
     // Get all assocations
     let associations = app.repository.getInstancesOf("ERDRelationship");
@@ -317,15 +317,9 @@ class AssociationGraph {
 	  classes.includes(assoc.end2.reference))
       .forEach((assoc) => {
 	
-	console.log(assoc.end1);
-	console.log(assoc.end2);
-	
 	for (const [end1, end2] of [[assoc.end1, assoc.end2],
 				    [assoc.end2, assoc.end1]]) {
 
-	  console.log(end1);
-	  console.log(end2);
-	  
 	  // Many-to-one
 	  if ( end1.cardinality.includes("*") &&
 	       !end2.cardinality.includes("*"))
@@ -346,15 +340,6 @@ class AssociationGraph {
   
   findRoots(remainingClasses)
   {
-    console.log("Remaining Classes (findRoots):");
-    console.log(remainingClasses);
-
-    console.log("Children:");
-    remainingClasses.forEach((cls) => {
-      console.log(cls.name);
-      console.log(this.children[cls.name]);
-    });
-    
     // Find nodes which are not children of any other
     return remainingClasses
       .filter((candidate) =>
@@ -374,28 +359,27 @@ class AssociationGraph {
       this.children[cls.name]
 	.forEach((child) => numParents[child.name] += 1)
     );
-
-    console.log(numParents);
     
     return numParents;
   }
 
+  getAParent(classes, child)
+  {
+    return classes.find((cls) => this.children[cls.name].includes(child));
+  }
+
+  
   breakAssociation(remainingClasses)
   {
-    console.log("Breaking association!");
-    
     // The graph of only remainingClasses contains a cycle.
     // Break one of the edges with the goal of removing cycles
-    let numParents = this.numberOfParents(remainingClasses);
-
-    // Sort the array so those closer to being a root come out first
-    remainingClasses.sort((a, b) => numParents[a] - numParents[b]);
+    console.log("Breaking association!");
 
     // Remove all one-to-one edges first
     for (const cls of remainingClasses) {
       
       for (const child of this.children[cls.name]) {
-	if (this.oneToOne[cls].includes(child)) {
+	if (this.oneToOne[cls.name].includes(child)) {
 
 	  // Remove the edge
 	  this.children[cls.name] =
@@ -409,15 +393,20 @@ class AssociationGraph {
       }
     }
 
+    
+    let numParents = this.numberOfParents(remainingClasses);
+
+    // Sort the array so those closer to being a root come out first
+    remainingClasses.sort((a, b) => numParents[a] - numParents[b]);
+
     // Remove first many-to-one edges next
     let cls = remainingClasses[0];
-    let child = this.children[cls.name][0];
+    let parent = this.getAParent(remainingClasses, cls);
 
-
-    this.children[cls.name] =
-      this.children[cls.name].filter((item) => item !== child);
-    this.oneToOne[cls] =
-      this.oneToOne[cls.name].filter((item) => item !== child);
+    this.children[parent.name] =
+      this.children[parent.name].filter((item) => item !== cls);
+    this.oneToOne[parent.name] =
+      this.oneToOne[parent.name].filter((item) => item !== cls);
   }
 
   
@@ -429,13 +418,8 @@ class AssociationGraph {
     let remainingClasses = classes;
     
     while (remainingClasses.length > 0) {
-      console.log("Remaining classes:");
-      console.log(remainingClasses);
       
       let roots = this.findRoots(remainingClasses);
-
-      console.log("Roots:");
-      console.log(roots);
       
       if (roots.length > 0) {
 	
@@ -493,11 +477,7 @@ function generate (baseModel, basePath, options)
       .filter((element) => element instanceof type.ERDEntity);
 
   let assocGraph = new AssociationGraph(classes);
-  console.log(assocGraph);
   orderedClasses = assocGraph.topologicalSort(classes);
-
-  console.log("Topologically ordered classes:");
-  console.log(orderedClasses);
     
   var filename =  fullPath + '/model.py';
   var text = peeweeCodeGenerator.generate(orderedClasses, options);

@@ -5,7 +5,7 @@
 
 The aim of this project is to provide an StarUML extension to:
 
-- Auto-generate **PeeWee Model Classes** from an Entity Relationship Diagram (ERD).
+- Auto-generate Python **PeeWee Model Classes** from an Entity Relationship Diagram (ERD).
 
 
 
@@ -28,7 +28,7 @@ the same database schema which you have defined. Specifically,
 
 1. Click the menu (`Tools > PeeWee Database Model > Generate Code...`)
 2. If necessary, select a base model (or package) that will be generated to PeeWee database model.
-3. Select a folder where generated Python source file (.py) will be placed.
+3. Select a folder where the generated Python source file (.py) will be placed.
 
 
 

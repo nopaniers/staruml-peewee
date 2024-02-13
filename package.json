@@ -1,5 +1,5 @@
 {
-    "name": "staruml-peewee",
+    "name": "nopaniers.staruml-peewee",
     "title": "PeeWee",
     "description": "Generate a PeeWee model from a database schema",
     "homepage": "https://github.com/nopaniers/staruml-peewee",
@@ -9,16 +9,13 @@
 	"database",
 	"python"
     ],
-    "version": "0.0.1",
+    "version": "0.1.0",
     "author": {
 	"name": "Charles Hill",
 	"email": "nopaniers@gmail.com"
     },
     "license": "MIT",
     "engines": {
-	"staruml": "^3.0.0"
-    },
-    "dependencies": {
-	"eslint": "^4.19.1"
+	"staruml": ">=3.0.0"
     }
 }

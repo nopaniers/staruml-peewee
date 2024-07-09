@@ -92,3 +92,4 @@ bugs that you find here via github.
 
 This project is based on a similar project, [staruml-django](https://github.com/josemlp91/staruml-django), by [josemlp91](https://github.com/josemlp91).
 
+If you find this useful, feel free to [buy me a coffee](https://buymeacoffee.com/nopaniers).
